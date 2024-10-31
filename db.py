@@ -31,7 +31,7 @@ class Database:
                 self.client = AsyncIOMotorClient(os.getenv('MONGO_URI'), serverSelectionTimeoutMS=10000)
                 await self.client.server_info()
                 self.db = self.client['santosh-companies']
-                self.queue_collection = self.db['queue2']
+                self.queue_collection = self.db['queue3']
                 await self.queue_collection.create_index('scraped')
 
                 Logger.info("Successfully connected to MongoDB")

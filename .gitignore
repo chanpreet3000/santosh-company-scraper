@@ -2,6 +2,7 @@ proxies.txt
 /logs
 input.csv
 /images
+output*.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

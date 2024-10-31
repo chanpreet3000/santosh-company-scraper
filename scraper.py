@@ -3,7 +3,6 @@ import os
 import time
 import urllib.parse
 import uuid
-import wikipedia
 import aiohttp
 import asyncio
 
@@ -41,12 +40,37 @@ class ParallelScraper:
                     proxies.append(proxy_url)
         return proxies
 
-    def get_company_description(self, company_name: str) -> str | None:
-        company_name += ' company'
+    async def get_company_description(self, company_name: str, proxy_url: str) -> str | None:
         try:
-            return str(wikipedia.summary(company_name, sentences=15))
+            query = f"{company_name} company's description"
+            encoded_query = urllib.parse.quote(query)
+            search_url = f"https://search.yahoo.com/search?p={encoded_query}"
+
+            async with self.session.get(
+                    search_url,
+                    proxy=proxy_url,
+                    headers={
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+                    },
+                    timeout=aiohttp.ClientTimeout(total=self.timeout)
+            ) as response:
+                if response.status != 200:
+                    raise Exception(f"HTTP {response.status}")
+
+                html = await response.text()
+                soup = BeautifulSoup(html, 'html.parser')
+
+                # Find all description blocks
+                description_blocks = soup.select('.algo-sr .compText')
+
+                if not description_blocks:
+                    raise Exception("No description found")
+
+                # Combine all found descriptions
+                return description_blocks[0].get_text(strip=True)
+
         except Exception as e:
-            Logger.info("Unable to fetch description", e)
+            Logger.error("Unable to fetch description", e)
             raise e
 
     async def download_image(self, image_url: str, proxy_url: str) -> str:
@@ -110,7 +134,7 @@ class ParallelScraper:
                                 local_image_url = await self.download_image(image_url, proxy_url)
                                 return local_image_url, image_url
                             except:
-                                pass
+                                continue
                     except (json.JSONDecodeError, KeyError):
                         continue
 
@@ -123,7 +147,7 @@ class ParallelScraper:
         proxy_url = self.proxies[self.current_proxy_index]
         self.current_proxy_index = (self.current_proxy_index + 1) % len(self.proxies)
 
-        company_description = self.get_company_description(company_name)
+        company_description = await self.get_company_description(company_name, proxy_url)
         local_image_url, company_logo_url = await self.get_company_logo_url(company_name, proxy_url)
 
         return {
@@ -150,6 +174,7 @@ class ParallelScraper:
                 'description': scraped_data['description'],
                 'local_image_url': scraped_data['local_image_url'],
             }
+            Logger.info(f"Updating record {record_id}", update_data)
 
             await self.db.queue_collection.update_one(
                 {'_id': record_id},
@@ -261,7 +286,7 @@ class ParallelScraper:
 
 async def main():
     scraper = ParallelScraper(
-        batch_size=10,
+        batch_size=50,
         timeout=10,
         max_retries=5,
         batch_delay=0,
