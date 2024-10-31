@@ -1,9 +1,12 @@
+proxies.txt
+/logs
+input.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-proxies.txt
-/logs
+
 
 # C extensions
 *.so
